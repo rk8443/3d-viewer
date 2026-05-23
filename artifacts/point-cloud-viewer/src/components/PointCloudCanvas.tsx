@@ -5,7 +5,6 @@ import { ViewportGizmo } from "three-viewport-gizmo";
 import { PointCloudData } from "../lib/point-cloud";
 import {
   markOutliers,
-  fillGridGaps,
   smoothGrid,
   buildSurfaceMesh,
   meshAsPointCloudData,
@@ -27,7 +26,6 @@ interface PointCloudCanvasProps {
   heightRange?: [number, number]; // [zMin, zMax] world-space for height coloring
   clipEnabled?: boolean; // when true, hide points whose Z is outside heightRange
   heightMap?: "linear" | "equalized"; // how to map Z within heightRange to a hue
-  fillGaps?: boolean; // interpolate NaN cells in the scan raster
   showSurface?: boolean; // render as triangulated surface mesh instead of points
   smoothPasses?: number; // 3x3 box-blur passes applied to grid Z before meshing
   onReady?: (ctrl: ViewController) => void;
@@ -110,7 +108,6 @@ export function PointCloudCanvas({
   heightRange,
   clipEnabled,
   heightMap,
-  fillGaps,
   showSurface,
   smoothPasses,
   onReady,
@@ -137,23 +134,23 @@ export function PointCloudCanvas({
   }>(() => {
     if (!data) return { workData: null, meshBuffers: null };
     const sp = smoothPasses ?? 0;
-    if (!data.grid || (!fillGaps && !showSurface && sp === 0)) {
+    if (!data.grid || (!showSurface && sp === 0)) {
       return { workData: data, meshBuffers: null };
     }
     // Reject saturated-sensor outliers before any neighbor-aware op so they
-    // don't leak into fill/smooth/mesh as ghost height.
+    // don't leak into smooth/mesh as ghost height. No fill — only measured
+    // pixels are kept; missing cells stay missing and are never triangulated.
     let zArr = markOutliers(data.grid.z, 6);
-    if (fillGaps) zArr = fillGridGaps(data.grid, zArr);
     if (sp > 0) zArr = smoothGrid(data.grid, zArr, sp);
     if (showSurface) {
       const buffers = buildSurfaceMesh(data.grid, zArr);
       return { workData: meshAsPointCloudData(buffers, data), meshBuffers: buffers };
     }
-    if (fillGaps || sp > 0) {
+    if (sp > 0) {
       return { workData: gridToFilledPoints(data.grid, zArr, data), meshBuffers: null };
     }
     return { workData: data, meshBuffers: null };
-  }, [data, fillGaps, showSurface, smoothPasses]);
+  }, [data, showSurface, smoothPasses]);
 
   // -------- view controller helpers (stable refs used by buttons) --------
   const fitView = useRef<() => void>(() => {});
