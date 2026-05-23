@@ -27,6 +27,7 @@ export default function Home() {
   const [loadingStage, setLoadingStage] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [maxPoints, setMaxPoints] = useState<number>(500_000);
+  const [heightRange, setHeightRange] = useState<[number, number] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const viewCtrlRef = useRef<ViewController | null>(null);
   const pendingFileRef = useRef<File | null>(null);
@@ -66,6 +67,8 @@ export default function Home() {
       const parsed = await parseFile(file, pts ?? maxPoints, setLoadingStage);
       setLoadingStage("Building point cloud…");
       setData(parsed);
+      // Initialize height range to the dataset's actual Z extent.
+      setHeightRange([parsed.boundingBox.min[2], parsed.boundingBox.max[2]]);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to parse file";
       const isOom = /memory|allocation|RangeError|too large/i.test(msg);
@@ -96,8 +99,10 @@ export default function Home() {
   };
 
   const loadDemo = () => {
-    setData(generateDemoCloud());
+    const demo = generateDemoCloud();
+    setData(demo);
     setFilename("demo_torus.bin");
+    setHeightRange([demo.boundingBox.min[2], demo.boundingBox.max[2]]);
     setError(null);
   };
 
@@ -209,6 +214,43 @@ export default function Home() {
                 onValueChange={(v) => setPointSize(v[0])}
               />
             </div>
+
+            {data && colorMode === "height" && heightRange && (() => {
+              const dataMin = data.boundingBox.min[2];
+              const dataMax = data.boundingBox.max[2];
+              const span = dataMax - dataMin || 1;
+              const step = span / 500;
+              return (
+                <div className="space-y-2 pt-2">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-sm">Height Range (Z)</Label>
+                    <button
+                      data-testid="button-reset-height-range"
+                      className="text-[10px] text-primary hover:underline font-mono"
+                      onClick={() => setHeightRange([dataMin, dataMax])}
+                    >
+                      reset
+                    </button>
+                  </div>
+                  <Slider
+                    data-testid="slider-height-range"
+                    value={heightRange}
+                    min={dataMin}
+                    max={dataMax}
+                    step={step}
+                    minStepsBetweenThumbs={1}
+                    onValueChange={(v) => setHeightRange([v[0], v[1]] as [number, number])}
+                  />
+                  <div className="flex justify-between text-[11px] font-mono text-muted-foreground">
+                    <span data-testid="text-height-min">{heightRange[0].toFixed(2)}</span>
+                    <span data-testid="text-height-max">{heightRange[1].toFixed(2)}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-tight">
+                    Narrow the window to bring out variation when outliers flatten the gradient.
+                  </p>
+                </div>
+              );
+            })()}
 
             {data && (
               <div className="space-y-2 pt-1">
@@ -330,9 +372,10 @@ export default function Home() {
               data={data}
               pointSize={pointSize}
               colorMode={colorMode}
+              heightRange={heightRange ?? undefined}
               onReady={onCanvasReady}
             />
-            <ColorLegend data={data} mode={colorMode} />
+            <ColorLegend data={data} mode={colorMode} heightRange={heightRange ?? undefined} />
           </>
         )}
       </div>

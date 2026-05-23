@@ -3,15 +3,16 @@ import { PointCloudData } from "../lib/point-cloud";
 interface ColorLegendProps {
   data: PointCloudData;
   mode: "height" | "intensity" | "uniform";
+  heightRange?: [number, number];
 }
 
-export function ColorLegend({ data, mode }: ColorLegendProps) {
+export function ColorLegend({ data, mode, heightRange }: ColorLegendProps) {
   if (mode === "uniform") return null;
 
   const isHeight = mode === "height";
   const label = isHeight ? "Z (Height)" : "Intensity";
-  const min = isHeight ? data.boundingBox.min[2] : 0;
-  const max = isHeight ? data.boundingBox.max[2] : 1;
+  const min = isHeight ? (heightRange?.[0] ?? data.boundingBox.min[2]) : 0;
+  const max = isHeight ? (heightRange?.[1] ?? data.boundingBox.max[2]) : 1;
   const range = max - min;
 
   const gradient = isHeight

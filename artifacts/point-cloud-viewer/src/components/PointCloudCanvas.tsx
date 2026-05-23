@@ -15,19 +15,27 @@ interface PointCloudCanvasProps {
   data: PointCloudData | null;
   pointSize: number;
   colorMode: "height" | "intensity" | "uniform";
+  heightRange?: [number, number]; // [zMin, zMax] for height coloring
   onReady?: (ctrl: ViewController) => void;
 }
 
-function buildColors(data: PointCloudData, colorMode: "height" | "intensity" | "uniform"): Float32Array {
+function buildColors(
+  data: PointCloudData,
+  colorMode: "height" | "intensity" | "uniform",
+  heightRange?: [number, number],
+): Float32Array {
   const colors = new Float32Array(data.pointCount * 3);
   const color = new THREE.Color();
   const { min, max } = data.boundingBox;
-  const zRange = max[2] - min[2];
+  const [zLo, zHi] = heightRange ?? [min[2], max[2]];
+  const zSpan = zHi - zLo;
 
   for (let i = 0; i < data.pointCount; i++) {
     if (colorMode === "height") {
       const z = data.positions[i * 3 + 2];
-      const t = zRange === 0 ? 0.5 : (z - min[2]) / zRange;
+      let t = zSpan === 0 ? 0.5 : (z - zLo) / zSpan;
+      if (t < 0) t = 0;
+      else if (t > 1) t = 1;
       color.setHSL(0.7 - t * 0.7, 1.0, 0.5);
     } else if (colorMode === "intensity" && data.intensities) {
       const v = data.intensities[i];
@@ -42,7 +50,7 @@ function buildColors(data: PointCloudData, colorMode: "height" | "intensity" | "
   return colors;
 }
 
-export function PointCloudCanvas({ data, pointSize, colorMode, onReady }: PointCloudCanvasProps) {
+export function PointCloudCanvas({ data, pointSize, colorMode, heightRange, onReady }: PointCloudCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -171,6 +179,7 @@ export function PointCloudCanvas({ data, pointSize, colorMode, onReady }: PointC
     };
   }, []);
 
+  // Rebuild geometry only when the dataset changes.
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
@@ -186,7 +195,7 @@ export function PointCloudCanvas({ data, pointSize, colorMode, onReady }: PointC
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(data.positions, 3));
-    const colors = buildColors(data, colorMode);
+    const colors = buildColors(data, colorMode, heightRange);
     geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     geo.computeBoundingBox();
     const center = new THREE.Vector3();
@@ -204,9 +213,19 @@ export function PointCloudCanvas({ data, pointSize, colorMode, onReady }: PointC
     scene.add(points);
     pointsRef.current = points;
 
-    // Auto-fit on every new dataset
     fitView.current();
-  }, [data, colorMode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  // Re-color in place when color mode or height range changes (no re-fit).
+  useEffect(() => {
+    const points = pointsRef.current;
+    if (!points || !data) return;
+    const colors = buildColors(data, colorMode, heightRange);
+    const attr = (points.geometry as THREE.BufferGeometry).getAttribute("color") as THREE.BufferAttribute;
+    attr.array.set(colors);
+    attr.needsUpdate = true;
+  }, [data, colorMode, heightRange?.[0], heightRange?.[1]]);
 
   useEffect(() => {
     if (!pointsRef.current) return;
