@@ -79,6 +79,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "three-viewport-gizmo": "^2.2.0",
     "tiff": "^7.1.3"
   }
 }

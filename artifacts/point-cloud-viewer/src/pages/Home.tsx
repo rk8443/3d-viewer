@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
-import { PointCloudCanvas } from "@/components/PointCloudCanvas";
+import { PointCloudCanvas, ViewController, ViewPreset } from "@/components/PointCloudCanvas";
+import { ColorLegend } from "@/components/ColorLegend";
 import { parseFile, generateDemoCloud, PointCloudData } from "@/lib/point-cloud";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
@@ -27,9 +28,15 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [maxPoints, setMaxPoints] = useState<number>(500_000);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const resetCameraRef = useRef<(() => void) | null>(null);
+  const viewCtrlRef = useRef<ViewController | null>(null);
   const pendingFileRef = useRef<File | null>(null);
   const loadTokenRef = useRef(0);
+
+  const onCanvasReady = useCallback((ctrl: ViewController) => {
+    viewCtrlRef.current = ctrl;
+  }, []);
+  const fitView = () => viewCtrlRef.current?.fit();
+  const setView = (p: ViewPreset) => viewCtrlRef.current?.setView(p);
 
   const processFile = useCallback(async (file: File, pts?: number) => {
     const token = ++loadTokenRef.current;
@@ -204,14 +211,47 @@ export default function Home() {
             </div>
 
             {data && (
-              <Button
-                data-testid="button-reset-camera"
-                variant="outline"
-                className="w-full text-xs"
-                onClick={() => resetCameraRef.current?.()}
-              >
-                Reset Camera
-              </Button>
+              <div className="space-y-2 pt-1">
+                <Label className="text-sm">View</Label>
+                <div className="grid grid-cols-3 gap-1">
+                  {([
+                    ["front", "Front"],
+                    ["top", "Top"],
+                    ["right", "Right"],
+                    ["back", "Back"],
+                    ["bottom", "Bottom"],
+                    ["left", "Left"],
+                  ] as const).map(([p, label]) => (
+                    <Button
+                      key={p}
+                      data-testid={`button-view-${p}`}
+                      variant="outline"
+                      className="text-[11px] h-7 px-1"
+                      onClick={() => setView(p)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  <Button
+                    data-testid="button-view-iso"
+                    variant="outline"
+                    className="text-xs h-7"
+                    onClick={() => setView("iso")}
+                  >
+                    Isometric
+                  </Button>
+                  <Button
+                    data-testid="button-fit-view"
+                    variant="default"
+                    className="text-xs h-7"
+                    onClick={fitView}
+                  >
+                    Fit to Screen
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
 
@@ -285,12 +325,15 @@ export default function Home() {
             <p className="text-sm mt-2 opacity-70">Upload a TIF/PNG image or load the demo dataset</p>
           </div>
         ) : (
-          <PointCloudCanvas
-            data={data}
-            pointSize={pointSize}
-            colorMode={colorMode}
-            onResetCamera={(fn) => { resetCameraRef.current = fn; }}
-          />
+          <>
+            <PointCloudCanvas
+              data={data}
+              pointSize={pointSize}
+              colorMode={colorMode}
+              onReady={onCanvasReady}
+            />
+            <ColorLegend data={data} mode={colorMode} />
+          </>
         )}
       </div>
     </div>

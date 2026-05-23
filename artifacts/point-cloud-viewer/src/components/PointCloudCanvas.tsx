@@ -1,13 +1,21 @@
 import { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { ViewportGizmo } from "three-viewport-gizmo";
 import { PointCloudData } from "../lib/point-cloud";
+
+export type ViewPreset = "iso" | "front" | "back" | "left" | "right" | "top" | "bottom";
+
+export interface ViewController {
+  fit: () => void;
+  setView: (preset: ViewPreset) => void;
+}
 
 interface PointCloudCanvasProps {
   data: PointCloudData | null;
   pointSize: number;
   colorMode: "height" | "intensity" | "uniform";
-  onResetCamera?: (fn: () => void) => void;
+  onReady?: (ctrl: ViewController) => void;
 }
 
 function buildColors(data: PointCloudData, colorMode: "height" | "intensity" | "uniform"): Float32Array {
@@ -34,22 +42,27 @@ function buildColors(data: PointCloudData, colorMode: "height" | "intensity" | "
   return colors;
 }
 
-export function PointCloudCanvas({ data, pointSize, colorMode, onResetCamera }: PointCloudCanvasProps) {
+export function PointCloudCanvas({ data, pointSize, colorMode, onReady }: PointCloudCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
+  const gizmoRef = useRef<ViewportGizmo | null>(null);
   const pointsRef = useRef<THREE.Points | null>(null);
   const frameRef = useRef<number>(0);
   const mountedRef = useRef(false);
+
+  // -------- view controller helpers (stable refs used by buttons) --------
+  const fitView = useRef<() => void>(() => {});
+  const setView = useRef<(p: ViewPreset) => void>(() => {});
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container || mountedRef.current) return;
     mountedRef.current = true;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: false });
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setClearColor(0x080d14);
@@ -60,7 +73,8 @@ export function PointCloudCanvas({ data, pointSize, colorMode, onResetCamera }: 
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 200000);
-    camera.position.set(0, -30, 30);
+    camera.up.set(0, 0, 1); // Z is up — matches engineering / SolidWorks convention
+    camera.position.set(40, -40, 30);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
@@ -72,10 +86,65 @@ export function PointCloudCanvas({ data, pointSize, colorMode, onResetCamera }: 
     const axesHelper = new THREE.AxesHelper(5);
     scene.add(axesHelper);
 
+    // SolidWorks-style view gizmo in the bottom-right corner.
+    const gizmo = new ViewportGizmo(camera, renderer, {
+      type: "cube",
+      size: 110,
+      placement: "bottom-right",
+      offset: { right: 12, bottom: 12 },
+      background: { enabled: true, color: 0x1a2230, opacity: 0.85, hover: { color: 0x2a3850, opacity: 1 } },
+      corners: { enabled: true, color: 0x3a4860 },
+      font: { family: "ui-monospace, monospace", weight: 600 },
+    });
+    gizmo.attachControls(controls);
+    gizmoRef.current = gizmo;
+
+    // ---- view controller implementations ----
+    fitView.current = () => {
+      const geo = pointsRef.current?.geometry as THREE.BufferGeometry | undefined;
+      if (!geo || !geo.boundingSphere) return;
+      const radius = geo.boundingSphere.radius || 20;
+      const fov = (camera.fov * Math.PI) / 180;
+      // distance so the sphere fits, with a small margin
+      const dist = (radius / Math.sin(fov / 2)) * 1.05;
+      const dir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+      if (dir.lengthSq() === 0) dir.set(1, -1, 0.8).normalize();
+      camera.position.copy(controls.target).addScaledVector(dir, dist);
+      camera.near = Math.max(0.01, radius / 10000);
+      camera.far = Math.max(20000, radius * 50);
+      camera.updateProjectionMatrix();
+      controls.update();
+      gizmo.update();
+    };
+
+    setView.current = (preset: ViewPreset) => {
+      const geo = pointsRef.current?.geometry as THREE.BufferGeometry | undefined;
+      const radius = (geo?.boundingSphere?.radius ?? 0) > 0 ? geo!.boundingSphere!.radius : 20;
+      const fov = (camera.fov * Math.PI) / 180;
+      const dist = (radius / Math.sin(fov / 2)) * 1.05;
+      const dirs: Record<ViewPreset, [number, number, number]> = {
+        iso: [1, -1, 0.9],
+        front: [0, -1, 0],
+        back: [0, 1, 0],
+        left: [-1, 0, 0],
+        right: [1, 0, 0],
+        top: [0, 0, 1],
+        bottom: [0, 0, -1],
+      };
+      const [x, y, z] = dirs[preset];
+      const dir = new THREE.Vector3(x, y, z).normalize();
+      controls.target.set(0, 0, 0);
+      camera.position.copy(controls.target).addScaledVector(dir, dist);
+      camera.lookAt(controls.target);
+      controls.update();
+      gizmo.update();
+    };
+
     const animate = () => {
       frameRef.current = requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
+      gizmo.render();
     };
     animate();
 
@@ -84,6 +153,7 @@ export function PointCloudCanvas({ data, pointSize, colorMode, onResetCamera }: 
       camera.aspect = container.clientWidth / container.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(container.clientWidth, container.clientHeight);
+      gizmo.update();
     };
     const ro = new ResizeObserver(onResize);
     ro.observe(container);
@@ -92,9 +162,12 @@ export function PointCloudCanvas({ data, pointSize, colorMode, onResetCamera }: 
       mountedRef.current = false;
       cancelAnimationFrame(frameRef.current);
       ro.disconnect();
+      gizmo.dispose();
       controls.dispose();
       renderer.dispose();
-      container.removeChild(renderer.domElement);
+      if (renderer.domElement.parentNode === container) {
+        container.removeChild(renderer.domElement);
+      }
     };
   }, []);
 
@@ -119,6 +192,7 @@ export function PointCloudCanvas({ data, pointSize, colorMode, onResetCamera }: 
     const center = new THREE.Vector3();
     geo.boundingBox!.getCenter(center);
     geo.translate(-center.x, -center.y, -center.z);
+    geo.computeBoundingSphere();
 
     const mat = new THREE.PointsMaterial({
       size: pointSize,
@@ -130,20 +204,8 @@ export function PointCloudCanvas({ data, pointSize, colorMode, onResetCamera }: 
     scene.add(points);
     pointsRef.current = points;
 
-    const camera = cameraRef.current;
-    const controls = controlsRef.current;
-    if (camera && controls) {
-      geo.computeBoundingSphere();
-      const radius = (geo.boundingSphere?.radius ?? 0) > 0 ? geo.boundingSphere!.radius : 20;
-      console.log('[canvas] bounding radius=', radius, 'box=', geo.boundingBox);
-      camera.position.set(0, -radius * 2.2, radius * 1.6);
-      camera.lookAt(0, 0, 0);
-      controls.target.set(0, 0, 0);
-      camera.near = Math.max(0.01, radius / 10000);
-      camera.far = Math.max(20000, radius * 50);
-      camera.updateProjectionMatrix();
-      controls.update();
-    }
+    // Auto-fit on every new dataset
+    fitView.current();
   }, [data, colorMode]);
 
   useEffect(() => {
@@ -151,22 +213,14 @@ export function PointCloudCanvas({ data, pointSize, colorMode, onResetCamera }: 
     ((pointsRef.current.material) as THREE.PointsMaterial).size = pointSize;
   }, [pointSize]);
 
+  // Hand the controller to the parent exactly once.
   useEffect(() => {
-    if (onResetCamera) {
-      onResetCamera(() => {
-        const camera = cameraRef.current;
-        const controls = controlsRef.current;
-        const geo = pointsRef.current?.geometry;
-        if (!camera || !controls) return;
-        const r = geo?.boundingSphere?.radius ?? 0;
-        const radius = r > 0 ? r : 20;
-        camera.position.set(0, -radius * 2.2, radius * 1.6);
-        camera.lookAt(0, 0, 0);
-        controls.target.set(0, 0, 0);
-        controls.update();
-      });
-    }
-  }, [onResetCamera]);
+    if (!onReady) return;
+    onReady({
+      fit: () => fitView.current(),
+      setView: (p) => setView.current(p),
+    });
+  }, [onReady]);
 
   return <div ref={containerRef} className="w-full h-full" />;
 }
