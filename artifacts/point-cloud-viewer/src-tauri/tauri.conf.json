@@ -1,0 +1,63 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "3D Viewer",
+  "version": "0.1.0",
+  "identifier": "com.replit.threedviewer",
+  "build": {
+    "beforeDevCommand": "pnpm run dev:tauri",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm run build:tauri",
+    "frontendDist": "../dist/public"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "title": "3D Viewer",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "decorations": true,
+        "transparent": false,
+        "backgroundColor": "#070b11"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "publisher": "3D Viewer",
+    "category": "Utility",
+    "shortDescription": "Precision 3D point cloud viewer",
+    "longDescription": "3D Viewer — view and inspect TIF, PNG, BMP and CDB point cloud files with height/intensity color maps, height clipping, and view presets.",
+    "copyright": "",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "windows": {
+      "wix": {
+        "language": "en-US",
+        "fragmentPaths": ["wix/desktop-shortcut.wxs"],
+        "componentRefs": ["DesktopShortcutComponent"]
+      },
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "installMode": "perMachine",
+        "displayLanguageSelector": false,
+        "createDesktopShortcut": true,
+        "shortcutName": "3D Viewer"
+      }
+    }
+  }
+}

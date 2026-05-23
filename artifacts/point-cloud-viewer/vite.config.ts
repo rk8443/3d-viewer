@@ -4,7 +4,11 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-const rawPort = process.env.PORT;
+// When packaging for Tauri we don't go through the Replit artifact proxy,
+// so PORT / BASE_PATH aren't injected. Use Tauri-friendly defaults instead.
+const isTauri = process.env.TAURI_BUILD === "1" || !!process.env.TAURI_PLATFORM;
+
+const rawPort = process.env.PORT ?? (isTauri ? "1420" : undefined);
 
 if (!rawPort) {
   throw new Error(
@@ -18,7 +22,9 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const basePath = process.env.BASE_PATH;
+// Tauri loads bundled assets from a tauri://localhost/ origin and needs
+// relative URLs so they resolve correctly from any path.
+const basePath = process.env.BASE_PATH ?? (isTauri ? "./" : undefined);
 
 if (!basePath) {
   throw new Error(
