@@ -3,9 +3,13 @@ import type { PointCloudData } from "./point-cloud";
 // Fill NaN cells in a row-major grid by iteratively averaging their finite
 // 4-neighbors. Returns a new array; the input is not mutated. Uses true
 // ping-pong buffers to avoid per-pass allocations.
+//
+// Default = 1 pass: only fills holes that have at least one valid neighbor
+// on each side (i.e. single-pixel pinholes). Higher values let the fill bleed
+// into bigger gaps, which can create ghost geometry, so keep this conservative.
 export function fillGridGaps(
   grid: NonNullable<PointCloudData["grid"]>,
-  iterations = 4,
+  iterations = 1,
 ): Float32Array {
   const { cols, rows, z } = grid;
   let cur = new Float32Array(z);
@@ -91,13 +95,48 @@ export interface SurfaceMeshBuffers {
   validMask: Uint8Array; // 1 if cell had a finite z, 0 otherwise (length = vertexCount)
 }
 
+// Estimate a Z-edge tolerance from the median |Δz| between horizontally
+// adjacent valid cells. Edges with a larger jump than `factor * median`
+// indicate a real depth discontinuity (a cliff in the scan) and should not be
+// triangulated across. Sampled, so it stays cheap on huge grids.
+function estimateEdgeTolerance(
+  grid: NonNullable<PointCloudData["grid"]>,
+  zArray: Float32Array,
+  factor: number,
+): number {
+  const { cols, rows } = grid;
+  const total = cols * rows;
+  const target = 4000;
+  const stride = Math.max(1, Math.floor(total / target));
+  const samples: number[] = [];
+  for (let idx = 0; idx + 1 < total; idx += stride) {
+    if ((idx + 1) % cols === 0) continue; // crossing into the next row
+    const a = zArray[idx];
+    const b = zArray[idx + 1];
+    if (isFinite(a) && isFinite(b)) samples.push(Math.abs(a - b));
+  }
+  if (samples.length < 20) return Infinity;
+  samples.sort((a, b) => a - b);
+  const median = samples[samples.length >>> 1];
+  // Guard against a flat scan (median 0) — use the 90th percentile instead.
+  if (median === 0) {
+    const p90 = samples[Math.min(samples.length - 1, Math.floor(samples.length * 0.9))];
+    if (p90 === 0) return Infinity;
+    return p90 * factor;
+  }
+  return median * factor;
+}
+
 // Triangulate a grid into a mesh, skipping any quad whose corners include
-// invalid (NaN) cells. Invalid vertex positions are filled with the centroid
-// of all valid cells so they never inflate the bounding sphere — they are
-// also never referenced by any triangle so they're effectively hidden.
+// invalid (NaN) cells OR whose edges span a real depth discontinuity (a
+// jump much larger than the typical neighbor-to-neighbor Z delta). Invalid
+// vertex positions are pinned to the centroid of valid cells so they don't
+// inflate the bounding sphere — they're also unreferenced by any triangle
+// so they stay hidden.
 export function buildSurfaceMesh(
   grid: NonNullable<PointCloudData["grid"]>,
   zArray: Float32Array, // typically grid.z or the gap-filled output
+  edgeFactor = 8, // skip edges longer than `edgeFactor * median |Δz|`
 ): SurfaceMeshBuffers {
   const { cols, rows, xStep, yStep, xOrigin, yOrigin } = grid;
   const vertexCount = cols * rows;
@@ -136,7 +175,11 @@ export function buildSurfaceMesh(
     }
   }
 
-  // Two triangles per cell, skip if any corner is invalid.
+  // Edge tolerance prevents triangles from bridging across depth cliffs.
+  const edgeTol = estimateEdgeTolerance(grid, zArray, edgeFactor);
+
+  // Two triangles per cell, skip if any corner is invalid OR any of the five
+  // unique edges (a-b, a-d, b-e, d-e, b-d) jumps further than the tolerance.
   const indices = new Uint32Array((cols - 1) * (rows - 1) * 6);
   let ti = 0;
   for (let r = 0; r < rows - 1; r++) {
@@ -146,6 +189,14 @@ export function buildSurfaceMesh(
       const d = a + cols;
       const e = d + 1;
       if (!validMask[a] || !validMask[b] || !validMask[d] || !validMask[e]) continue;
+      const za = zArray[a], zb = zArray[b], zd = zArray[d], ze = zArray[e];
+      if (
+        Math.abs(za - zb) > edgeTol ||
+        Math.abs(za - zd) > edgeTol ||
+        Math.abs(zb - ze) > edgeTol ||
+        Math.abs(zd - ze) > edgeTol ||
+        Math.abs(zb - zd) > edgeTol
+      ) continue;
       indices[ti++] = a;
       indices[ti++] = d;
       indices[ti++] = b;
