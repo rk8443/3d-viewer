@@ -134,22 +134,19 @@ export function PointCloudCanvas({
   }>(() => {
     if (!data) return { workData: null, meshBuffers: null };
     const sp = smoothPasses ?? 0;
-    if (!data.grid || (!showSurface && sp === 0)) {
-      return { workData: data, meshBuffers: null };
-    }
-    // Reject saturated-sensor outliers before any neighbor-aware op so they
-    // don't leak into smooth/mesh as ghost height. No fill — only measured
-    // pixels are kept; missing cells stay missing and are never triangulated.
-    let zArr = markOutliers(data.grid.z, 6);
-    if (sp > 0) zArr = smoothGrid(data.grid, zArr, sp);
+    // CSV/XYZ/BIN have no grid -> pass through unchanged.
+    if (!data.grid) return { workData: data, meshBuffers: null };
+    // Always reject saturated-sensor outliers on grid scans, even with the
+    // surface mesh off. Otherwise toggling Surface off would make ghost spikes
+    // reappear as points. Only measured pixels are ever rendered; nothing is
+    // interpolated, and missing cells stay missing.
+    const zClean = markOutliers(data.grid.z, 6);
+    const zArr = sp > 0 ? smoothGrid(data.grid, zClean, sp) : zClean;
     if (showSurface) {
       const buffers = buildSurfaceMesh(data.grid, zArr);
       return { workData: meshAsPointCloudData(buffers, data), meshBuffers: buffers };
     }
-    if (sp > 0) {
-      return { workData: gridToFilledPoints(data.grid, zArr, data), meshBuffers: null };
-    }
-    return { workData: data, meshBuffers: null };
+    return { workData: gridToFilledPoints(data.grid, zArr, data), meshBuffers: null };
   }, [data, showSurface, smoothPasses]);
 
   // -------- view controller helpers (stable refs used by buttons) --------

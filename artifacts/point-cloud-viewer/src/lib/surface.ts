@@ -10,11 +10,20 @@ export function markOutliers(
 ): Float32Array {
   const total = zArray.length;
   const target = 4000;
-  const stride = Math.max(1, Math.floor(total / target));
+  // Sparse-valid LMI grids (e.g. 0.5% finite cells) made the old fixed-stride
+  // sampling collect almost no finite values and silently bypass the check.
+  // Stride over FINITE cells instead so we always hit the sample target.
+  let finiteCount = 0;
+  for (let i = 0; i < total; i++) if (isFinite(zArray[i])) finiteCount++;
+  if (finiteCount < 20) return zArray;
+  const fStride = Math.max(1, Math.floor(finiteCount / target));
   const samples: number[] = [];
-  for (let i = 0; i < total; i += stride) {
+  let seen = 0;
+  for (let i = 0; i < total; i++) {
     const v = zArray[i];
-    if (isFinite(v)) samples.push(v);
+    if (!isFinite(v)) continue;
+    if (seen % fStride === 0) samples.push(v);
+    seen++;
   }
   if (samples.length < 20) return zArray;
   samples.sort((a, b) => a - b);
