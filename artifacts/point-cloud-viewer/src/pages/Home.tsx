@@ -29,6 +29,7 @@ export default function Home() {
   const [maxPoints, setMaxPoints] = useState<number>(500_000);
   const [heightRange, setHeightRange] = useState<[number, number] | null>(null);
   const [clipOutliers, setClipOutliers] = useState<boolean>(true);
+  const [heightMap, setHeightMap] = useState<"linear" | "equalized">("equalized");
 
   // Compute robust [p5, p95] of Z so the default rainbow is not flattened by
   // a handful of outlier pixels (very common with LMI depth scans).
@@ -249,6 +250,22 @@ export default function Home() {
                       reset
                     </button>
                   </div>
+                  <div className="flex rounded-md border border-border overflow-hidden text-[11px] font-mono">
+                    {(["linear", "equalized"] as const).map((m) => (
+                      <button
+                        key={m}
+                        data-testid={`button-heightmap-${m}`}
+                        onClick={() => setHeightMap(m)}
+                        className={`flex-1 py-1 transition-colors ${
+                          heightMap === m
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-transparent text-muted-foreground hover:bg-muted/40"
+                        }`}
+                      >
+                        {m === "linear" ? "Linear" : "Equalized"}
+                      </button>
+                    ))}
+                  </div>
                   <Slider
                     data-testid="slider-height-range"
                     value={heightRange}
@@ -401,6 +418,7 @@ export default function Home() {
               colorMode={colorMode}
               heightRange={heightRange ?? undefined}
               clipEnabled={clipOutliers}
+              heightMap={heightMap}
               onReady={onCanvasReady}
             />
             <ColorLegend data={data} mode={colorMode} heightRange={heightRange ?? undefined} />

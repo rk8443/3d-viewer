@@ -17,6 +17,7 @@ interface PointCloudCanvasProps {
   colorMode: "height" | "intensity" | "uniform";
   heightRange?: [number, number]; // [zMin, zMax] world-space for height coloring
   clipEnabled?: boolean; // when true, hide points whose Z is outside heightRange
+  heightMap?: "linear" | "equalized"; // how to map Z within heightRange to a hue
   onReady?: (ctrl: ViewController) => void;
 }
 
@@ -54,24 +55,28 @@ function buildColors(
   data: PointCloudData,
   colorMode: "height" | "intensity" | "uniform",
   heightRange?: [number, number],
+  heightMap: "linear" | "equalized" = "equalized",
 ): Float32Array {
   const colors = new Float32Array(data.pointCount * 3);
   const color = new THREE.Color();
   const { min, max } = data.boundingBox;
   const [zLo, zHi] = heightRange ?? [min[2], max[2]];
+  const zSpan = zHi - zLo;
 
-  // Pre-build the equalization table once for the whole point cloud (only for
-  // height mode). This stretches the rainbow across the actual point density,
-  // not the raw Z span.
-  const qTable = colorMode === "height" ? buildZQuantileTable(data, zLo, zHi) : null;
+  // Pre-build the equalization table only when needed.
+  const qTable =
+    colorMode === "height" && heightMap === "equalized"
+      ? buildZQuantileTable(data, zLo, zHi)
+      : null;
 
   for (let i = 0; i < data.pointCount; i++) {
-    if (colorMode === "height" && qTable) {
+    if (colorMode === "height") {
       const z = data.positions[i * 3 + 2];
       let t: number;
       if (z <= zLo) t = 0;
       else if (z >= zHi) t = 1;
-      else t = quantileOf(qTable, z);
+      else if (qTable) t = quantileOf(qTable, z);
+      else t = zSpan === 0 ? 0.5 : (z - zLo) / zSpan;
       color.setHSL(0.7 - t * 0.7, 1.0, 0.5);
     } else if (colorMode === "intensity" && data.intensities) {
       const v = data.intensities[i];
@@ -86,7 +91,7 @@ function buildColors(
   return colors;
 }
 
-export function PointCloudCanvas({ data, pointSize, colorMode, heightRange, clipEnabled, onReady }: PointCloudCanvasProps) {
+export function PointCloudCanvas({ data, pointSize, colorMode, heightRange, clipEnabled, heightMap, onReady }: PointCloudCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -233,7 +238,7 @@ export function PointCloudCanvas({ data, pointSize, colorMode, heightRange, clip
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(data.positions, 3));
-    const colors = buildColors(data, colorMode, heightRange);
+    const colors = buildColors(data, colorMode, heightRange, heightMap);
     geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     geo.computeBoundingBox();
     const center = new THREE.Vector3();
@@ -292,11 +297,11 @@ export function PointCloudCanvas({ data, pointSize, colorMode, heightRange, clip
   useEffect(() => {
     const points = pointsRef.current;
     if (!points || !data) return;
-    const colors = buildColors(data, colorMode, heightRange);
+    const colors = buildColors(data, colorMode, heightRange, heightMap);
     const attr = (points.geometry as THREE.BufferGeometry).getAttribute("color") as THREE.BufferAttribute;
     attr.array.set(colors);
     attr.needsUpdate = true;
-  }, [data, colorMode, heightRange?.[0], heightRange?.[1]]);
+  }, [data, colorMode, heightMap, heightRange?.[0], heightRange?.[1]]);
 
   useEffect(() => {
     if (!pointsRef.current) return;
