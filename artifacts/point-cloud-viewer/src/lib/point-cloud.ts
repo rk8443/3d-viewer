@@ -251,8 +251,36 @@ export async function parseKeyenceBmp(buffer: ArrayBuffer, maxPoints = 100_000):
   // Fall back to packed-RGB on insufficient evidence — safer default for
   // Keyence files where misclassifying packed-RGB as grayscale destroys depth.
   const isGrayscale = nonZeroSamples >= 100 && (grayCount / nonZeroSamples) >= 0.98;
+
+  // For packed-RGB encoding, decide between RGB (z = R<<16|G<<8|B) and
+  // BGR (z = B<<16|G<<8|R) byte order. The wrong order makes the height
+  // jump by ~65536 whenever the true value crosses a 256 boundary, which
+  // appears as parallel "layered" planes in the cloud. We pick whichever
+  // encoding produces fewer big jumps between horizontally-adjacent pixels.
+  let useBgr = false;
+  if (!isGrayscale) {
+    const JUMP = 32768;
+    let rgbJumps = 0, bgrJumps = 0, comparisons = 0;
+    const stride = Math.max(1, Math.floor((width * height) / 5000));
+    for (let p = 0; p + 1 < width * height; p += stride) {
+      const o1 = p * 4, o2 = (p + 1) * 4;
+      const r1 = px[o1], g1 = px[o1 + 1], b1 = px[o1 + 2];
+      const r2 = px[o2], g2 = px[o2 + 1], b2 = px[o2 + 2];
+      if ((r1 | g1 | b1) === 0 || (r2 | g2 | b2) === 0) continue;
+      const zRgb1 = (r1 << 16) | (g1 << 8) | b1;
+      const zRgb2 = (r2 << 16) | (g2 << 8) | b2;
+      const zBgr1 = (b1 << 16) | (g1 << 8) | r1;
+      const zBgr2 = (b2 << 16) | (g2 << 8) | r2;
+      if (Math.abs(zRgb1 - zRgb2) > JUMP) rgbJumps++;
+      if (Math.abs(zBgr1 - zBgr2) > JUMP) bgrJumps++;
+      comparisons++;
+    }
+    useBgr = bgrJumps < rgbJumps;
+    console.log('[parseKeyenceBmp] byte-order test:', { rgbJumps, bgrJumps, comparisons, chose: useBgr ? 'BGR' : 'RGB' });
+  }
+
   console.log('[parseKeyenceBmp]', {
-    width, height, isGrayscale, nonZeroSamples,
+    width, height, isGrayscale, useBgr, nonZeroSamples,
     grayRatio: nonZeroSamples > 0 ? (grayCount / nonZeroSamples).toFixed(3) : 'n/a',
   });
 
@@ -276,8 +304,9 @@ export async function parseKeyenceBmp(buffer: ArrayBuffer, maxPoints = 100_000):
       if (isGrayscale) {
         z = R; // 0..255
       } else {
-        // 24-bit packed: R is most significant. 0 = no-data per Keyence convention.
-        z = (R << 16) | (G << 8) | B;
+        // 24-bit packed height. Byte order auto-detected above.
+        // 0 = no-data per Keyence convention.
+        z = useBgr ? ((B << 16) | (G << 8) | R) : ((R << 16) | (G << 8) | B);
       }
       xs[i] = c;
       ys[i] = r;
