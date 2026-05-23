@@ -62,7 +62,17 @@
   --accent-foreground: 210 40% 98%;
   --destructive: 0 63% 31%;
   --destructive-foreground: 210 40% 98%;
-  --radius: 0.25rem;
+  --radius: 0.5rem;
+}
+
+@layer utilities {
+  .premium-scroll::-webkit-scrollbar { width: 6px; }
+  .premium-scroll::-webkit-scrollbar-track { background: transparent; }
+  .premium-scroll::-webkit-scrollbar-thumb {
+    background: hsl(216 34% 22%);
+    border-radius: 3px;
+  }
+  .premium-scroll::-webkit-scrollbar-thumb:hover { background: hsl(216 34% 30%); }
 }
 
 .dark {

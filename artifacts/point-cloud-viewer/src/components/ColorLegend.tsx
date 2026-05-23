@@ -26,16 +26,16 @@ export function ColorLegend({ data, mode, heightRange }: ColorLegendProps) {
   }).reverse();
 
   return (
-    <div className="absolute top-4 right-4 z-20 bg-card/85 backdrop-blur-sm border border-border rounded-md p-2 select-none pointer-events-none">
-      <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground text-center mb-1.5">
+    <div className="absolute top-5 right-5 z-20 bg-card/80 backdrop-blur-md border border-border/60 rounded-lg px-3 py-3 select-none pointer-events-none shadow-lg shadow-black/30">
+      <div className="text-[9.5px] font-medium uppercase tracking-[0.18em] text-muted-foreground/80 text-center mb-2">
         {label}
       </div>
-      <div className="flex items-stretch gap-2">
+      <div className="flex items-stretch gap-2.5">
         <div
-          className="w-4 rounded-sm border border-border/60"
+          className="w-3.5 rounded-full border border-border/60"
           style={{ background: gradient, height: 180 }}
         />
-        <div className="flex flex-col justify-between text-[10px] font-mono text-foreground/85" style={{ height: 180 }}>
+        <div className="flex flex-col justify-between text-[10px] font-mono text-foreground/85 tabular-nums" style={{ height: 180 }}>
           {ticks.map((v, i) => (
             <span key={i}>{isHeight ? v.toFixed(1) : v.toFixed(2)}</span>
           ))}
