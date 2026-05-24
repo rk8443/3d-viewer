@@ -252,21 +252,38 @@ if (Test-Path $vswhere) {
 if (-not $haveMsvc) {
     $vsExe = Join-Path $tempDir "vs_BuildTools.exe"
     Download-FileWithProgress "https://aka.ms/vs/17/release/vs_BuildTools.exe" $vsExe "VS Build Tools bootstrapper"
-    Write-Host "    Workload: Desktop development with C++ + Windows 11 SDK (~1.5 GB)"
-    Write-Host "    UAC prompt will appear - click YES, then wait. This is the slowest step."
+    Write-Host ""
+    Write-Host "    ============================================================" -ForegroundColor Yellow
+    Write-Host "    IMPORTANT: A Microsoft Visual Studio Installer WINDOW will open." -ForegroundColor Yellow
+    Write-Host "    It shows the real download/install progress (size in MB,"            -ForegroundColor Yellow
+    Write-Host "    current package name, percentage). Watch THAT window, not this one." -ForegroundColor Yellow
+    Write-Host "    This script will wait until Microsoft's installer finishes."         -ForegroundColor Yellow
+    Write-Host "    Total: ~1.5 GB download + install, usually 8-15 minutes."            -ForegroundColor Yellow
+    Write-Host "    ============================================================" -ForegroundColor Yellow
+    Write-Host "    UAC prompt will appear first - click YES."
+
+    # --passive (not --quiet) shows Microsoft's official installer UI with a
+    # real progress bar and current-package readout, but does not require
+    # any clicks. --quiet hides everything and looks frozen for 15+ minutes.
+    # We only request the minimum components Tauri/Rust actually need so the
+    # install stays lean (~1.5 GB instead of ~5 GB with --includeRecommended).
     $vsArgs = @(
-        "--quiet", "--wait", "--norestart", "--nocache",
+        "--passive", "--wait", "--norestart", "--nocache",
         "--add", "Microsoft.VisualStudio.Workload.VCTools",
-        "--add", "Microsoft.VisualStudio.Component.Windows11SDK.22621",
-        "--includeRecommended"
+        "--add", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+        "--add", "Microsoft.VisualStudio.Component.Windows11SDK.22621"
     )
-    $p = Start-WithProgress -FilePath $vsExe -ArgumentList $vsArgs -Label "Installing VS Build Tools"
+    $p = Start-WithProgress -FilePath $vsExe -ArgumentList $vsArgs -Label "VS Build Tools (watch the Microsoft installer window)"
     # 0 = success, 3010 = success but reboot suggested
     if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
         Fail @"
 VS Build Tools installer returned code $($p.ExitCode).
-Install manually from https://visualstudio.microsoft.com/downloads/?q=build+tools
-Tick 'Desktop development with C++' during install, then re-run launch.bat.
+
+If the Microsoft installer window showed an error, follow its instructions.
+Otherwise install manually:
+  https://visualstudio.microsoft.com/downloads/?q=build+tools
+Tick 'Desktop development with C++' + 'Windows 11 SDK' during install,
+then re-run launch.bat.
 "@
     }
     if (Test-Path $vswhere) {
