@@ -263,25 +263,49 @@ Quick fixes:
 }
 
 # --- 2. pnpm -------------------------------------------------------
+# We deliberately install pnpm DIRECTLY via npm rather than via corepack.
+# Reason: the corepack bundled with Node 20.18.1 (and several other LTS
+# builds) has stale npm-registry signing keys, so any `pnpm install` ends
+# in: "Cannot find matching keyid: ..." once corepack tries to fetch fresh
+# package metadata. A direct `npm install -g pnpm@9` gives us a real pnpm
+# binary that doesn't go through corepack's signature verification path.
+#
+# We also refresh corepack itself, because a previously-installed
+# corepack-shimmed `pnpm` would still hijack the call and fail. Updating
+# corepack pulls in the current signing keys so even the shim path works.
 Write-Step "Checking pnpm"
+$needsPnpm = $true
 try {
+    # Probe with `pnpm -v` (cheap) AND `pnpm root -g` (forces corepack to
+    # do its registry round-trip, exposing stale-keys breakage upfront).
     $v = & pnpm --version 2>$null
-    Write-Host "    Found pnpm $v - skipping install"
-} catch {
-    Write-Host "    Trying corepack..."
-    & corepack enable 2>&1 | ForEach-Object { Write-Host "    $_" }
-    & corepack prepare pnpm@9 --activate 2>&1 | ForEach-Object { Write-Host "    $_" }
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "    corepack failed, falling back to: npm install -g pnpm"
-        & npm install -g pnpm 2>&1 | ForEach-Object { Write-Host "    $_" }
-        if ($LASTEXITCODE -ne 0) { Fail "Could not install pnpm." }
+    if ($LASTEXITCODE -eq 0 -and $v) {
+        & pnpm root -g 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "    Found working pnpm $v - skipping install"
+            $needsPnpm = $false
+        } else {
+            Write-Host "    pnpm $v is installed but broken (likely corepack signing-keys issue). Reinstalling..." -ForegroundColor Yellow
+        }
     }
+} catch {
+    Write-Host "    pnpm not found - installing..."
+}
+if ($needsPnpm) {
+    # Refresh corepack first so any leftover corepack shim works too.
+    Write-Host "    Updating corepack (fixes stale npm signing keys)..."
+    & npm install -g corepack@latest 2>&1 | ForEach-Object { Write-Host "    $_" }
+    # Install pnpm directly. -g writes to npm's global prefix, which is on
+    # PATH after Node's installer ran.
+    Write-Host "    Installing pnpm 9 via npm..."
+    & npm install -g pnpm@9 2>&1 | ForEach-Object { Write-Host "    $_" }
+    if ($LASTEXITCODE -ne 0) { Fail "Could not install pnpm. Run 'npm install -g pnpm@9' manually, then re-run launch.bat." }
     Refresh-Path
     try {
         $v = & pnpm --version
         Write-Host "    Installed pnpm $v"
     } catch {
-        Fail "pnpm installed but not on PATH. Close this window and re-run launch.bat."
+        Fail "pnpm installed but not on PATH yet. Close this window and re-run launch.bat."
     }
 }
 
