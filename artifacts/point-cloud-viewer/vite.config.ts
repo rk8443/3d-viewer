@@ -72,6 +72,11 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    watch: {
+      usePolling: true,
+      interval: 600,
+      ignored: ["**/node_modules/**", "**/dist/**", "**/.git/**", "**/.local/**", "**/src-tauri/**"],
+    },
   },
   preview: {
     port,

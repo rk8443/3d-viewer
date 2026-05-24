@@ -18,7 +18,7 @@ const DENSITY_OPTIONS = [
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground/80 mb-3">
+    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-3">
       {children}
     </div>
   );
@@ -124,18 +124,23 @@ export default function Home() {
   const ext = (filename.split(".").pop() ?? "").toUpperCase();
 
   return (
-    <div className="flex h-screen w-full bg-background overflow-hidden dark text-foreground">
+    <div className="flex h-screen w-full bg-background overflow-hidden dark text-foreground antialiased">
       {/* SIDEBAR */}
-      <aside className="w-[340px] shrink-0 border-r border-border/60 bg-gradient-to-b from-card to-card/60 flex flex-col z-10">
+      <aside className="w-[340px] shrink-0 border-r border-white/[0.06] sidebar-mesh flex flex-col z-10 relative">
         {/* Brand */}
-        <div className="px-6 pt-6 pb-5 border-b border-border/50">
-          <div className="flex items-center gap-2.5">
-            <div className="relative h-7 w-7 rounded-md bg-primary/15 border border-primary/30 flex items-center justify-center">
-              <div className="h-3 w-3 rounded-sm bg-primary/80 shadow-[0_0_10px_hsl(var(--primary))]" />
+        <div className="px-6 pt-6 pb-5 border-b border-white/[0.06]">
+          <div className="flex items-center gap-3">
+            <div className="relative h-9 w-9 rounded-[10px] brand-gradient flex items-center justify-center shadow-[0_8px_24px_-8px_hsl(262_83%_50%/0.6)]">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                <path d="m3.3 7 8.7 5 8.7-5" />
+                <path d="M12 22V12" />
+              </svg>
+              <div className="absolute inset-0 rounded-[10px] ring-1 ring-inset ring-white/15" />
             </div>
             <div className="flex flex-col leading-none">
-              <h1 className="text-[15px] font-semibold tracking-tight text-foreground">3D Viewer</h1>
-              <span className="text-[10px] tracking-wider uppercase text-muted-foreground/70 mt-1">Point Cloud Studio</span>
+              <h1 className="text-[15px] font-semibold tracking-tight text-gradient">PointLens</h1>
+              <span className="text-[10px] tracking-[0.14em] uppercase text-muted-foreground mt-1.5">Point cloud studio</span>
             </div>
           </div>
         </div>
@@ -148,12 +153,21 @@ export default function Home() {
 
             <div
               data-testid="upload-dropzone"
-              className={`group relative rounded-xl border border-dashed transition-all cursor-pointer overflow-hidden ${
+              role="button"
+              tabIndex={0}
+              aria-label="Upload a point cloud file. Drop a file here or press Enter to browse."
+              className={`group relative rounded-xl border border-dashed transition-all cursor-pointer overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-primary/55 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                 isDragging
-                  ? "border-primary/70 bg-primary/[0.07]"
-                  : "border-border/70 hover:border-primary/40 hover:bg-primary/[0.03]"
+                  ? "border-primary/70 bg-primary/[0.08]"
+                  : "border-white/[0.10] hover:border-primary/45 hover:bg-primary/[0.04]"
               }`}
               onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
               onDrop={onDrop}
@@ -166,17 +180,17 @@ export default function Home() {
                 accept={ACCEPTED_TYPES}
                 onChange={handleFileChange}
               />
-              <div className="px-4 py-5 text-center">
-                <div className="mx-auto mb-2.5 h-9 w-9 rounded-full bg-primary/10 border border-primary/25 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+              <div className="px-4 py-6 text-center">
+                <div className="mx-auto mb-3 h-10 w-10 rounded-full brand-gradient-soft border border-white/10 flex items-center justify-center group-hover:scale-[1.04] transition-transform">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
                     <path d="M12 3v12" />
                     <path d="m7 8 5-5 5 5" />
                     <path d="M5 21h14" />
                   </svg>
                 </div>
                 <p className="text-[13px] font-medium text-foreground">Drop a file or browse</p>
-                <p className="text-[10.5px] text-muted-foreground/80 mt-1 tracking-wide">
-                  TIF · PNG · BMP · CDB · CSV · XYZ · BIN
+                <p className="text-[10.5px] text-muted-foreground mt-1.5 tracking-wide">
+                  TIF · PNG · BMP · CDB · PLY · CSV · XYZ
                 </p>
               </div>
             </div>
@@ -184,7 +198,8 @@ export default function Home() {
             {error && (
               <div
                 data-testid="text-error"
-                className="mt-3 text-[11.5px] leading-relaxed text-destructive-foreground/95 bg-destructive/15 border border-destructive/40 rounded-md px-3 py-2"
+                role="alert"
+                className="mt-3 text-[11.5px] leading-relaxed text-red-200 bg-destructive/15 border border-destructive/45 rounded-md px-3 py-2.5"
               >
                 {error}
               </div>
@@ -193,7 +208,7 @@ export default function Home() {
             <Button
               data-testid="button-load-demo"
               variant="outline"
-              className="w-full mt-3 h-9 text-[12px] font-medium bg-transparent border-border/70 hover:bg-muted/40 hover:text-foreground"
+              className="w-full mt-3 h-9 text-[12px] font-medium bg-white/[0.02] border-white/10 hover:bg-white/[0.05] hover:text-foreground"
               onClick={loadDemo}
               disabled={loading}
             >
@@ -229,10 +244,10 @@ export default function Home() {
                     tabIndex={active ? 0 : -1}
                     data-testid={`radio-density-${opt.value}`}
                     onClick={() => setMaxPoints(opt.value)}
-                    className={`group rounded-lg border px-3 py-2.5 text-left transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card ${
+                    className={`group rounded-lg border px-3 py-2.5 text-left transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary/55 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                       active
-                        ? "border-primary/60 bg-primary/[0.08] shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.25)]"
-                        : "border-border/60 hover:border-border bg-card/30 hover:bg-card/60"
+                        ? "border-primary/55 bg-primary/[0.10] shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.25),0_8px_24px_-12px_hsl(var(--primary)/0.45)]"
+                        : "border-white/[0.07] hover:border-white/[0.14] bg-white/[0.015] hover:bg-white/[0.04]"
                     }`}
                   >
                     <div className={`text-[12px] font-medium ${active ? "text-primary" : "text-foreground"}`}>
@@ -264,8 +279,8 @@ export default function Home() {
                   htmlFor={`cm-${mode}`}
                   className={`flex items-center gap-3 rounded-md px-2.5 py-2 cursor-pointer border transition-colors ${
                     colorMode === mode
-                      ? "border-primary/40 bg-primary/[0.05]"
-                      : "border-transparent hover:bg-muted/30"
+                      ? "border-primary/40 bg-primary/[0.06]"
+                      : "border-transparent hover:bg-white/[0.03]"
                   }`}
                 >
                   <RadioGroupItem value={mode} id={`cm-${mode}`} data-testid={`radio-colormode-${mode}`} />
@@ -315,17 +330,17 @@ export default function Home() {
                   </button>
                 </div>
 
-                <div className="flex rounded-md border border-border/60 overflow-hidden text-[11px] font-medium mb-3 bg-card/40">
+                <div className="flex rounded-md border border-white/[0.08] overflow-hidden text-[11px] font-medium mb-3 bg-white/[0.02] p-0.5">
                   {(["linear", "equalized"] as const).map((m) => (
                     <button
                       key={m}
                       type="button"
                       data-testid={`button-heightmap-${m}`}
                       onClick={() => setHeightMap(m)}
-                      className={`flex-1 py-1.5 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60 ${
+                      className={`flex-1 py-1.5 rounded-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/55 ${
                         heightMap === m
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                          ? "bg-white/10 text-foreground shadow-[0_1px_0_0_hsl(0_0%_100%/0.06)_inset]"
+                          : "text-muted-foreground hover:text-foreground"
                       }`}
                     >
                       {m === "linear" ? "Linear" : "Equalized"}
@@ -375,7 +390,7 @@ export default function Home() {
                     type="button"
                     data-testid={`button-view-${p}`}
                     onClick={() => setView(p)}
-                    className="h-7 text-[10.5px] font-medium rounded-md bg-card/40 border border-border/60 text-foreground/85 hover:bg-muted/50 hover:text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card"
+                    className="h-8 text-[11px] font-medium rounded-md bg-white/[0.02] border border-white/[0.07] text-foreground/85 hover:bg-white/[0.06] hover:border-white/[0.14] hover:text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/55 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     {label}
                   </button>
@@ -386,7 +401,7 @@ export default function Home() {
                   type="button"
                   data-testid="button-view-iso"
                   onClick={() => setView("iso")}
-                  className="h-8 text-[11px] font-medium rounded-md bg-card/40 border border-border/60 hover:bg-muted/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card"
+                  className="h-9 text-[11.5px] font-medium rounded-md bg-white/[0.02] border border-white/[0.07] hover:bg-white/[0.06] hover:border-white/[0.14] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/55 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   Isometric
                 </button>
@@ -394,9 +409,9 @@ export default function Home() {
                   type="button"
                   data-testid="button-fit-view"
                   onClick={fitView}
-                  className="h-8 text-[11px] font-semibold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-card"
+                  className="h-9 text-[11.5px] font-semibold rounded-md brand-gradient text-white shadow-[0_8px_24px_-10px_hsl(262_83%_50%/0.65)] hover:opacity-95 transition outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
-                  Fit to Screen
+                  Fit to screen
                 </button>
               </div>
             </section>
@@ -406,7 +421,7 @@ export default function Home() {
           {data && (
             <section>
               <SectionLabel>Dataset</SectionLabel>
-              <div className="rounded-lg border border-border/60 bg-card/40 divide-y divide-border/40">
+              <div className="rounded-lg border border-white/[0.07] bg-white/[0.015] divide-y divide-white/[0.06]">
                 <Row label="File">
                   <span data-testid="text-filename" className="truncate max-w-[170px]" title={filename}>{filename}</span>
                 </Row>
@@ -431,23 +446,36 @@ export default function Home() {
             </section>
           )}
         </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-white/[0.06]">
+          <div className="flex items-center justify-between text-[10.5px] text-muted-foreground">
+            <span className="tracking-wide">v1.0</span>
+            <span className="font-mono tabular-nums">{data ? `${formatNum(data.pointCount)} pts` : "—"}</span>
+          </div>
+        </div>
       </aside>
 
       {/* CANVAS */}
-      <main className="flex-1 relative bg-[#070b11]">
-        {/* Subtle vignette so the canvas feels premium */}
-        <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.35)_100%)]" />
+      <main className="flex-1 relative bg-[#05070b]">
+        {/* Premium ambient backdrop: subtle aurora + vignette */}
+        <div className="pointer-events-none absolute inset-0 z-0">
+          <div className="absolute inset-0 bg-[radial-gradient(80%_60%_at_70%_-10%,hsl(262_83%_55%/0.10),transparent_60%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(60%_60%_at_10%_110%,hsl(220_100%_55%/0.08),transparent_60%)]" />
+          <div className="absolute inset-0 canvas-vignette" />
+        </div>
 
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center z-20 bg-[#070b11]/85 backdrop-blur-sm">
+          <div className="absolute inset-0 flex items-center justify-center z-20 bg-[#05070b]/85 backdrop-blur-md">
             <div className="flex flex-col items-center gap-5 max-w-xs text-center">
               <div className="relative">
-                <div className="w-14 h-14 rounded-full border border-primary/20" />
+                <div className="w-14 h-14 rounded-full border border-white/10" />
                 <div className="absolute inset-0 w-14 h-14 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <div className="absolute inset-2 rounded-full bg-primary/10 blur-md" />
               </div>
               <div>
                 <p className="text-[13px] font-medium text-foreground">{loadingStage || "Processing…"}</p>
-                <p className="text-[11px] text-muted-foreground mt-1 truncate max-w-[220px] font-mono">{filename}</p>
+                <p className="text-[11px] text-muted-foreground mt-1.5 truncate max-w-[240px] font-mono">{filename}</p>
               </div>
             </div>
           </div>
@@ -456,15 +484,15 @@ export default function Home() {
         {!data ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground z-10">
             <div className="relative w-28 h-28 mb-7">
-              <div className="absolute inset-0 rounded-full border border-primary/15 animate-pulse" />
-              <div className="absolute inset-3 rounded-full border border-primary/20" />
+              <div className="absolute inset-0 rounded-full border border-white/[0.06] animate-pulse" />
+              <div className="absolute inset-3 rounded-full border border-white/[0.10]" />
               <div className="absolute inset-6 rounded-full border border-primary/30" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_18px_hsl(var(--primary))]" />
+                <div className="h-2.5 w-2.5 rounded-full brand-gradient shadow-[0_0_24px_hsl(262_83%_65%/0.65)]" />
               </div>
             </div>
             <p className="text-[15px] font-medium tracking-tight text-foreground/90">No point cloud loaded</p>
-            <p className="text-[12px] mt-2 text-muted-foreground/80">
+            <p className="text-[12px] mt-2 text-muted-foreground/85">
               Drop a file in the sidebar or load the demo dataset
             </p>
           </div>

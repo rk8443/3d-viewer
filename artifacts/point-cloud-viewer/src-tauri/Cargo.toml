@@ -1,8 +1,8 @@
 [package]
 name = "three_d_viewer"
 version = "0.1.0"
-description = "3D Viewer desktop shell"
-authors = ["3D Viewer"]
+description = "PointLens desktop shell"
+authors = ["PointLens"]
 edition = "2021"
 rust-version = "1.77"
 

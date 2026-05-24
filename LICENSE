@@ -1,0 +1,65 @@
+PointLens — Proprietary Software License
+Copyright (c) 2026 PointLens. All rights reserved.
+
+1. Definitions
+   "Software" means the PointLens application, its source code, compiled
+   binaries, documentation, and all associated files distributed in this
+   repository.
+   "Licensor" means the copyright holder named above.
+   "You" means the individual or legal entity exercising rights under this
+   License.
+
+2. Grant of Use
+   Subject to the terms below, Licensor grants You a non-exclusive,
+   non-transferable, revocable license to:
+   (a) download, install, and run the Software on machines You own or
+       control for Your own internal evaluation, personal, or internal
+       business use; and
+   (b) view and modify the source code for the sole purpose of (a).
+
+3. Restrictions
+   You may NOT, without prior written permission from Licensor:
+   (a) redistribute, sublicense, sell, rent, lease, or otherwise make the
+       Software (in source or binary form) available to any third party;
+   (b) host the Software as a service for third parties;
+   (c) remove or alter any copyright, trademark, or attribution notices;
+   (d) use the Software or any portion of it to create a competing product;
+   (e) use the name "PointLens" or any Licensor mark to endorse or promote
+       derivative works without prior written permission.
+
+4. Third-Party Components
+   The Software incorporates open-source libraries (React, Three.js, Tauri,
+   and others) that are governed by their own licenses. Those licenses
+   continue to apply to those components and are not superseded by this
+   License. Trademarks referenced in the documentation (LMI, Gocator,
+   Keyence, Cognex, VisionPro, Windows, WebView2, etc.) belong to their
+   respective owners; PointLens is an independent third-party viewer and is
+   not affiliated with or endorsed by any of those companies.
+
+5. No Warranty
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, AND
+   NON-INFRINGEMENT. PointLens is a visualization tool only and must not be
+   relied upon as the sole basis for safety-critical, medical, or
+   regulatory decisions.
+
+6. Limitation of Liability
+   IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR
+   OTHER LIABILITY (INCLUDING DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   CONSEQUENTIAL, OR PUNITIVE DAMAGES) ARISING FROM, OUT OF, OR IN
+   CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+7. Termination
+   This License terminates automatically if You breach any of its terms.
+   Upon termination You must cease all use of the Software and destroy all
+   copies in Your possession.
+
+8. Commercial Licensing & Contact
+   For redistribution rights, OEM licensing, commercial deployment, or any
+   use outside the scope of Section 2, please contact the repository owner
+   via GitHub: https://github.com/rk8443/pointlens
+
+9. Governing Law
+   This License is governed by the laws of the jurisdiction in which the
+   Licensor resides, without regard to its conflict-of-law provisions.

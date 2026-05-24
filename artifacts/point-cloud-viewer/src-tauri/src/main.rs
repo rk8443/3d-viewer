@@ -5,5 +5,5 @@ fn main() {
     tauri::Builder::default()
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())
-        .expect("error while running 3D Viewer");
+        .expect("error while running PointLens");
 }

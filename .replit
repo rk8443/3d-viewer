@@ -11,6 +11,26 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Auto-sync"
+
+[[workflows.workflow]]
+name = "Auto-sync"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash -c 'while true; do pnpm auto-sync; code=$?; echo \"[auto-sync] exited with code $code, restarting in 5s...\"; sleep 5; done'"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
@@ -34,6 +54,14 @@ externalPort = 8081
 [[ports]]
 localPort = 8082
 externalPort = 3002
+
+[[ports]]
+localPort = 8083
+externalPort = 3003
+
+[[ports]]
+localPort = 8084
+externalPort = 4200
 
 [[ports]]
 localPort = 22396

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "3D Viewer",
+  "productName": "PointLens",
   "version": "0.1.0",
   "identifier": "com.replit.threedviewer",
   "build": {
@@ -13,7 +13,7 @@
     "withGlobalTauri": false,
     "windows": [
       {
-        "title": "3D Viewer",
+        "title": "PointLens",
         "width": 1400,
         "height": 900,
         "minWidth": 960,
@@ -33,10 +33,10 @@
   "bundle": {
     "active": true,
     "targets": ["msi", "nsis"],
-    "publisher": "3D Viewer",
+    "publisher": "PointLens",
     "category": "Utility",
     "shortDescription": "Precision 3D point cloud viewer",
-    "longDescription": "3D Viewer — view and inspect TIF, PNG, BMP and CDB point cloud files with height/intensity color maps, height clipping, and view presets.",
+    "longDescription": "PointLens — view and inspect TIF, PNG, BMP, CDB and PLY point cloud files with height/intensity color maps, height clipping, and view presets.",
     "copyright": "",
     "icon": [
       "icons/32x32.png",
@@ -56,7 +56,7 @@
         "installMode": "perMachine",
         "displayLanguageSelector": false,
         "createDesktopShortcut": true,
-        "shortcutName": "3D Viewer"
+        "shortcutName": "PointLens"
       }
     }
   }
