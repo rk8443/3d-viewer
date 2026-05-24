@@ -1,6 +1,6 @@
 @echo off
 REM ====================================================================
-REM  3D Viewer — double-click to launch.
+REM  3D Viewer - double-click to launch.
 REM  First run: auto-installs Node.js, MSVC Build Tools, Rust, WebView2,
 REM             project deps, builds the app, then opens it.
 REM  Subsequent runs: opens the app in ~1 second, no checks.
