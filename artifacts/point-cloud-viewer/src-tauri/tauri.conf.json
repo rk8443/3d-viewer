@@ -54,9 +54,7 @@
       "nsis": {
         "installerIcon": "icons/icon.ico",
         "installMode": "perMachine",
-        "displayLanguageSelector": false,
-        "createDesktopShortcut": true,
-        "shortcutName": "PointLens"
+        "displayLanguageSelector": false
       }
     }
   }
