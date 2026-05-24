@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { PointCloudCanvas, ViewController, ViewPreset } from "@/components/PointCloudCanvas";
 import { ColorLegend } from "@/components/ColorLegend";
 import { parseFile, generateDemoCloud, PointCloudData } from "@/lib/point-cloud";
@@ -119,6 +119,15 @@ export default function Home() {
     setHeightRange(computeHeightDefault(demo));
     setError(null);
   };
+
+  // Deep-link: visiting ?demo=1 auto-loads the demo cloud (used for marketing
+  // screenshots and as a one-click way to preview the app without a file).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("demo") === "1") loadDemo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const formatNum = (n: number) => new Intl.NumberFormat().format(n);
   const ext = (filename.split(".").pop() ?? "").toUpperCase();
