@@ -115,35 +115,56 @@ function fmtTick(v: number, step: number): string {
   return v.toFixed(decimals);
 }
 
-// Build a sprite of `text`. Uses a small canvas so labels stay sharp.
-function makeLabelSprite(text: string, color: string, pxHeight: number): THREE.Sprite {
-  const padX = 8;
+// Build a transparent sprite of `text` in white with a black outline so it
+// stays legible on any background (dark voids, rainbow cloud, white surfaces).
+// The returned sprite carries its native canvas aspect ratio in userData.aspect
+// so the animation loop can rescale it each frame for constant screen size.
+function makeLabelSprite(text: string, pxHeight: number, bold = true): THREE.Sprite {
   const fontPx = 44;
+  const weight = bold ? "bold" : "500";
+  const font = `${weight} ${fontPx}px ui-monospace, "SF Mono", Consolas, monospace`;
+  const padX = 6;
+  const padY = 4;
+  const strokePx = Math.max(3, Math.round(fontPx * 0.13));
+
+  // Measure first
+  const measureCanvas = document.createElement("canvas");
+  const mctx = measureCanvas.getContext("2d")!;
+  mctx.font = font;
+  const textW = Math.ceil(mctx.measureText(text).width);
+
   const canvas = document.createElement("canvas");
-  // measure
-  const measureCtx = canvas.getContext("2d")!;
-  measureCtx.font = `bold ${fontPx}px ui-monospace, "SF Mono", Consolas, monospace`;
-  const textW = Math.ceil(measureCtx.measureText(text).width);
-  canvas.width = textW + padX * 2;
-  canvas.height = Math.ceil(fontPx * 1.4);
+  canvas.width = textW + padX * 2 + strokePx * 2;
+  canvas.height = Math.ceil(fontPx * 1.3) + padY * 2;
   const ctx = canvas.getContext("2d")!;
-  ctx.font = `bold ${fontPx}px ui-monospace, "SF Mono", Consolas, monospace`;
+  ctx.font = font;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  // subtle dark backing so labels stay readable on the rainbow cloud
-  ctx.fillStyle = "rgba(8,13,20,0.78)";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = color;
+  // No background fill — fully transparent canvas.
+  // Dark stroke first, white fill on top — classic readable-anywhere combo.
+  ctx.lineWidth = strokePx;
+  ctx.lineJoin = "round";
+  ctx.miterLimit = 2;
+  ctx.strokeStyle = "rgba(0,0,0,0.85)";
+  ctx.strokeText(text, canvas.width / 2, canvas.height / 2);
+  ctx.fillStyle = "#ffffff";
   ctx.fillText(text, canvas.width / 2, canvas.height / 2);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.minFilter = THREE.LinearFilter;
   tex.magFilter = THREE.LinearFilter;
   tex.anisotropy = 4;
-  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+  const mat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
   const sprite = new THREE.Sprite(mat);
-  // World-space sprite height in scene units; width scales with aspect.
   const aspect = canvas.width / canvas.height;
+  sprite.userData.aspect = aspect;
+  sprite.userData.baseHeight = pxHeight; // initial world-space height (recomputed per frame)
   sprite.scale.set(pxHeight * aspect, pxHeight, 1);
   sprite.renderOrder = 999;
   return sprite;
@@ -151,6 +172,7 @@ function makeLabelSprite(text: string, color: string, pxHeight: number): THREE.S
 
 interface AxesObjects {
   group: THREE.Group;
+  labels: THREE.Sprite[]; // every text sprite, so the animate loop can rescale them
   dispose: () => void;
 }
 
@@ -159,28 +181,27 @@ interface AxesObjects {
 // an axis-letter label at the far end.
 function buildLabeledAxes(size: THREE.Vector3, worldMin: THREE.Vector3): AxesObjects {
   const group = new THREE.Group();
+  const labels: THREE.Sprite[] = [];
   const disposables: Array<{ dispose: () => void }> = [];
 
   // Reference size for tick & label sizing — diagonal of the data box.
   const ref = Math.max(size.length(), 1);
   const tickLen = ref * 0.012;
-  const labelHeight = ref * 0.025; // world units, matches data scale
-  const axisLetterHeight = ref * 0.045;
+  const labelHeight = ref * 0.022; // world units, matches data scale
+  const axisLetterHeight = ref * 0.04;
 
   const axisDefs: Array<{
     name: "X" | "Y" | "Z";
     color: number;
-    colorCss: string;
-    dir: THREE.Vector3; // unit vector
-    length: number;     // in world units
-    worldStart: number; // first label value
-    tickDir1: THREE.Vector3; // direction the tick mark extends
-    tickDir2: THREE.Vector3; // perpendicular offset for label placement
+    dir: THREE.Vector3;
+    length: number;
+    worldStart: number;
+    tickDir1: THREE.Vector3;
+    tickDir2: THREE.Vector3;
   }> = [
     {
       name: "X",
       color: 0xff5577,
-      colorCss: "#ff8aa0",
       dir: new THREE.Vector3(1, 0, 0),
       length: size.x,
       worldStart: worldMin.x,
@@ -190,7 +211,6 @@ function buildLabeledAxes(size: THREE.Vector3, worldMin: THREE.Vector3): AxesObj
     {
       name: "Y",
       color: 0x55cc77,
-      colorCss: "#90e0a8",
       dir: new THREE.Vector3(0, 1, 0),
       length: size.y,
       worldStart: worldMin.y,
@@ -200,7 +220,6 @@ function buildLabeledAxes(size: THREE.Vector3, worldMin: THREE.Vector3): AxesObj
     {
       name: "Z",
       color: 0x6699ff,
-      colorCss: "#a8c5ff",
       dir: new THREE.Vector3(0, 0, 1),
       length: size.z,
       worldStart: worldMin.z,
@@ -240,9 +259,10 @@ function buildLabeledAxes(size: THREE.Vector3, worldMin: THREE.Vector3): AxesObj
       const worldVal = ax.worldStart + t;
       if (i === 0 && ax.name !== "Z") continue;
 
-      const label = makeLabelSprite(fmtTick(worldVal, step), ax.colorCss, labelHeight);
+      const label = makeLabelSprite(fmtTick(worldVal, step), labelHeight, false);
       label.position.copy(base).addScaledVector(ax.tickDir2, tickLen * 2.5);
       group.add(label);
+      labels.push(label);
       disposables.push(label.material as THREE.SpriteMaterial, (label.material as THREE.SpriteMaterial).map!);
     }
 
@@ -256,14 +276,17 @@ function buildLabeledAxes(size: THREE.Vector3, worldMin: THREE.Vector3): AxesObj
     }
 
     // Axis-letter label at the far end ("X", "Y", "Z")
-    const letter = makeLabelSprite(ax.name, ax.colorCss, axisLetterHeight);
+    const letter = makeLabelSprite(ax.name, axisLetterHeight, true);
+    letter.userData.role = "letter";
     letter.position.copy(ax.dir.clone().multiplyScalar(ax.length + tickLen * 4));
     group.add(letter);
+    labels.push(letter);
     disposables.push(letter.material as THREE.SpriteMaterial, (letter.material as THREE.SpriteMaterial).map!);
   }
 
   return {
     group,
+    labels,
     dispose: () => {
       for (const d of disposables) d.dispose();
     },
@@ -285,6 +308,7 @@ export function PointCloudCanvas({ data, pointSize, colorMode, heightRange, clip
   // anchor min to origin). Used as the orbit target.
   const boxCenterRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const axesRef = useRef<AxesObjects | null>(null);
+  const labelsRef = useRef<THREE.Sprite[]>([]);
   const clipUniformRef = useRef<{ value: THREE.Vector2 } | null>(null);
   const frameRef = useRef<number>(0);
   const mountedRef = useRef(false);
@@ -370,9 +394,45 @@ export function PointCloudCanvas({ data, pointSize, colorMode, heightRange, clip
       gizmo.update();
     };
 
+    // Per-frame: rescale every label sprite so it occupies roughly the same
+    // screen-space height regardless of camera distance. Sprites that are
+    // close still look small, sprites that are far still look big — exactly
+    // the opposite of perspective shrinkage. Net effect: labels are always
+    // readable and the axis "scales" with the view.
+    //
+    // The target is `screenHeight` of vertical screen pixels at the rendered
+    // height. We compute the world-units-per-pixel at the sprite's depth
+    // (perspective camera) and multiply.
+    const SCREEN_PIXEL_HEIGHT = 18; // tick labels
+    const SCREEN_PIXEL_HEIGHT_LETTER = 32; // axis letter
+    const tmpVec = new THREE.Vector3();
     const animate = () => {
       frameRef.current = requestAnimationFrame(animate);
       controls.update();
+
+      const sprites = labelsRef.current;
+      if (sprites.length > 0 && rendererRef.current) {
+        const rendererSize = new THREE.Vector2();
+        rendererRef.current.getSize(rendererSize);
+        const vFov = (camera.fov * Math.PI) / 180;
+        for (const sp of sprites) {
+          tmpVec.setFromMatrixPosition(sp.matrixWorld);
+          const dist = camera.position.distanceTo(tmpVec);
+          // World units per screen pixel at this depth.
+          const worldPerPixel = (2 * Math.tan(vFov / 2) * dist) / rendererSize.y;
+          const isLetter = sp.userData.baseHeight && sp.userData.baseHeight > (axesRef.current ? 0 : 0)
+            ? false
+            : false;
+          // Detect letter vs tick via stored baseHeight ratio: letter is bigger.
+          const target =
+            sp.userData.role === "letter" ? SCREEN_PIXEL_HEIGHT_LETTER : SCREEN_PIXEL_HEIGHT;
+          const worldH = target * worldPerPixel;
+          const aspect = sp.userData.aspect ?? 1;
+          sp.scale.set(worldH * aspect, worldH, 1);
+          void isLetter;
+        }
+      }
+
       renderer.render(scene, camera);
       gizmo.render();
     };
@@ -418,6 +478,7 @@ export function PointCloudCanvas({ data, pointSize, colorMode, heightRange, clip
       axesRef.current.dispose();
       axesRef.current = null;
     }
+    labelsRef.current = [];
 
     if (!data) return;
 
@@ -482,6 +543,7 @@ export function PointCloudCanvas({ data, pointSize, colorMode, heightRange, clip
     );
     scene.add(axes.group);
     axesRef.current = axes;
+    labelsRef.current = axes.labels;
 
     fitView.current();
     // eslint-disable-next-line react-hooks/exhaustive-deps
