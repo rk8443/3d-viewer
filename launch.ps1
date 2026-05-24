@@ -193,16 +193,115 @@ if (-not $rebuildNeeded) {
         exit 0
     }
 }
+# --- Preflight: probe every prerequisite ONCE before doing anything --
+# Without this the user has to wait for 5 sequential "Checking X" steps
+# before seeing whether anything actually needs installing. The preflight
+# runs all checks up front, prints a one-screen summary, and lets us
+# skip the entire install banner + steps 1-5 when nothing is missing
+# (we still run pnpm install + tauri build because the fast-path above
+# didn't fire, which means either the binary is gone or git pulled
+# updates).
+function Test-NodeInstalled {
+    try {
+        $v = (& node --version 2>$null) -replace 'v',''
+        if ($LASTEXITCODE -eq 0 -and $v -and [int]($v.Split('.')[0]) -ge 20) { return $v }
+    } catch {}
+    return $null
+}
+function Test-PnpmInstalled {
+    try {
+        $v = & pnpm --version 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $v) { return $null }
+        # Force corepack's network round-trip so we catch the stale-keys
+        # failure now, not 5 steps later inside `pnpm install`.
+        & pnpm root -g 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) { return $v }
+    } catch {}
+    return $null
+}
+function Test-MsvcInstalled {
+    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not (Test-Path $vswhere)) { return $null }
+    try {
+        $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null
+        if ($vs) { return $vs }
+    } catch {}
+    return $null
+}
+function Test-RustInstalled {
+    try {
+        $v = & rustc --version 2>$null
+        if ($LASTEXITCODE -eq 0 -and $v) { return $v }
+    } catch {}
+    return $null
+}
+function Test-Wv2Installed {
+    $keys = @(
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+        "HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+        "HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+    )
+    foreach ($k in $keys) { if (Test-Path $k) { return "installed" } }
+    return $null
+}
+
+$Script:NodeVer = Test-NodeInstalled
+$Script:PnpmVer = Test-PnpmInstalled
+$Script:MsvcPath = Test-MsvcInstalled
+$Script:RustVer = Test-RustInstalled
+$Script:Wv2State = Test-Wv2Installed
+
+$missing = @()
+if (-not $Script:NodeVer)  { $missing += "Node.js 20+" }
+if (-not $Script:PnpmVer)  { $missing += "pnpm 9" }
+if (-not $Script:MsvcPath) { $missing += "Visual Studio C++ Build Tools" }
+if (-not $Script:RustVer)  { $missing += "Rust (stable)" }
+if (-not $Script:Wv2State) { $missing += "WebView2 runtime" }
+
+# Helper to render one row with green check or yellow cross.
+function Show-PreflightRow($name, $present, $detail) {
+    if ($present) {
+        Write-Host ("    {0,-32} " -f $name) -NoNewline
+        Write-Host "[OK] " -ForegroundColor Green -NoNewline
+        Write-Host $detail -ForegroundColor DarkGray
+    } else {
+        Write-Host ("    {0,-32} " -f $name) -NoNewline
+        Write-Host "[MISSING] " -ForegroundColor Yellow -NoNewline
+        Write-Host "will install" -ForegroundColor DarkGray
+    }
+}
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host " PointLens - first-time setup" -ForegroundColor Cyan
+Write-Host " PointLens - prerequisite check" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "This will install everything needed and build the app."
-Write-Host "First run total: ~15-25 minutes (downloads ~2 GB of build tools)."
-Write-Host "After that, double-clicking launch.bat opens the app in ~1 sec."
+Show-PreflightRow "Node.js 20+"                       ($null -ne $Script:NodeVer)  ("v" + $Script:NodeVer)
+Show-PreflightRow "pnpm 9"                            ($null -ne $Script:PnpmVer)  ("v" + $Script:PnpmVer)
+Show-PreflightRow "Visual Studio C++ Build Tools"     ($null -ne $Script:MsvcPath) $Script:MsvcPath
+Show-PreflightRow "Rust toolchain"                    ($null -ne $Script:RustVer)  $Script:RustVer
+Show-PreflightRow "WebView2 runtime"                  ($null -ne $Script:Wv2State) $Script:Wv2State
 Write-Host ""
-Write-Host "You will see UAC prompts during installs. Click YES to allow." -ForegroundColor Yellow
-Write-Host ""
+
+if ($missing.Count -eq 0) {
+    # Everything's installed - skip the entire install banner + steps 1-5.
+    # We still need steps 6/7/8 because we wouldn't be here if the fast-path
+    # had launched the cached exe.
+    Write-Host "All prerequisites are present. Skipping install steps." -ForegroundColor Green
+    Write-Host "Going straight to building/launching PointLens." -ForegroundColor Green
+    Write-Host ""
+    # Advance the step counter past the 5 install steps so the [6/8] / [7/8]
+    # / [8/8] headers below still look right.
+    $Script:CurrentStep = 5
+} else {
+    Write-Host "==================================================" -ForegroundColor Cyan
+    Write-Host " PointLens - installing missing prerequisites" -ForegroundColor Cyan
+    Write-Host "==================================================" -ForegroundColor Cyan
+    Write-Host ("Will install: " + ($missing -join ", ")) -ForegroundColor Yellow
+    Write-Host "Total: depends on what's missing (5-25 min)."
+    Write-Host "After that, double-clicking launch.bat opens the app in ~1 sec."
+    Write-Host ""
+    Write-Host "You will see UAC prompts during installs. Click YES to allow." -ForegroundColor Yellow
+    Write-Host ""
+}
 
 # --- 1. Node.js -----------------------------------------------------
 Write-Step "Checking Node.js"
