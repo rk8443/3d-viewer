@@ -383,11 +383,33 @@ if ($needsPnpm) {
         $ErrorActionPreference = $prevEAP
     }
     Refresh-Path
+    # When npm runs without admin, it installs globals to a user-local
+    # prefix (typically %APPDATA%\npm) that's not in the registry PATH yet,
+    # so Refresh-Path alone won't see pnpm. Ask npm itself where it put
+    # the binary and prepend that to $env:Path for this session.
+    try {
+        $npmPrefix = (& npm config get prefix 2>$null).Trim()
+        if ($npmPrefix -and (Test-Path $npmPrefix)) {
+            $env:Path = "$npmPrefix;$env:Path"
+        }
+    } catch {}
+    # Belt-and-suspenders: the two most common Windows npm-global paths.
+    foreach ($p in @("$env:APPDATA\npm", "$env:ProgramFiles\nodejs")) {
+        if ((Test-Path $p) -and ($env:Path -notlike "*$p*")) {
+            $env:Path = "$p;$env:Path"
+        }
+    }
     try {
         $v = & pnpm --version
         Write-Host "    Installed pnpm $v"
     } catch {
-        Fail "pnpm installed but not on PATH yet. Close this window and re-run launch.bat."
+        Fail @"
+pnpm installed but not on this session's PATH.
+Try one of these:
+  1) Close this window and double-click launch.bat again (PATH refreshes for new processes).
+  2) Or open a new PowerShell window and run:  pnpm --version
+     If that works, re-run launch.bat from the same window.
+"@
     }
 }
 
